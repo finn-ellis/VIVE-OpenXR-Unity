@@ -282,11 +282,17 @@ namespace VIVE.OpenXR.Toolkits.Anchor
             });
         }
 
-        private static XrResult CompletePA(IntPtr future) {
+        // Updated CompletePA to set isPersisted = true on success
+        private static XrResult CompletePA(IntPtr future, Anchor anchor) {
             Debug.Log("AnchorManager: CompletePA");
             var ret = feature.PersistSpatialAnchorComplete(future, out var completion);
             if (ret == XrResult.XR_SUCCESS)
             {
+                if (anchor != null && completion.futureResult == XrResult.XR_SUCCESS)
+                {
+                    anchor.isPersisted = true;
+                    anchor.isTrackable = true; // Persisted anchors are also trackable
+                }
                 return completion.futureResult;
             }
             else
@@ -319,7 +325,8 @@ namespace VIVE.OpenXR.Toolkits.Anchor
             {
                 // If no auto complete, you can cancel the task and no need to free resouce.
                 // Once it completed, you need handle the result.
-                return new FutureTask<XrResult>(future, CompletePA, 10, autoComplete: false);
+                // Pass anchor to CompletePA so it can update isPersisted/isTrackable
+                return new FutureTask<XrResult>(future, (fut) => CompletePA(fut, anchor), 10, autoComplete: false);
             }
 
             return FutureTask<XrResult>.FromResult(ret);
@@ -410,6 +417,7 @@ namespace VIVE.OpenXR.Toolkits.Anchor
             return ret;
         }
 
+        // Updated CompleteCreateSAfromPA to set isTrackable = true
         private static (XrResult, Anchor) CompleteCreateSAfromPA(IntPtr future)
         {
             Debug.Log("AnchorManager: CompleteCreateSAfromPA");
@@ -418,6 +426,7 @@ namespace VIVE.OpenXR.Toolkits.Anchor
             {
                 var anchor = new Anchor(completion.anchor);
                 anchor.isTrackable = true;
+                // If created from a persisted anchor, it is not necessarily persisted yet, so isPersisted remains false
                 return (completion.futureResult, anchor);
             }
             else
